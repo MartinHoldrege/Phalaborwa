@@ -17,7 +17,8 @@ library(tidyverse)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
 
 # picarrow output
-raw1 <- read_csv("data_raw/picarro_output/output_20200225_Phal1.csv")
+output_file <- "output_20200225_Phal1.csv"
+raw1 <- read_csv(file.path("data_raw/picarro_output", output_file))
 
 # sample descriptions
 
@@ -96,10 +97,14 @@ clean4 <- clean3 %>%
   mutate(n = n()) %>% 
   # only 1 obs not good enough
   filter(n != 1 | `Identifier 1` %in% names(d2O_vals)) %>% 
-  select(-n)
+  select(-n) %>% 
+  ungroup()
 
 nrow(clean4)
-
+clean4 %>% 
+  filter(!`Identifier 1` %in% names(d2O_vals)) %>% 
+  pull(`d(D_H)Mean`) %>% 
+  hist()
 
 # check standards ---------------------------------------------------------
 
@@ -123,5 +128,47 @@ plot(d2O_true ~ `d(D_H)Mean`, data = check)
 abline(lm_check, col = "blue")
 abline(0, 1)
 
+# prep 
+
+# prep chem correct files -------------------------------------------------
+
+# chem correct files can only have 250 lines
+n <- nrow(clean4)
+n_files <- ceiling(n/250)
+
+first <- 1
+seqs <- list()
+for (i in 1:n_files) {
+  ith_seq <- first:min(n, i*250)
+  first <- max(ith_seq) + 1
+  seqs[[i]] <- ith_seq
+}
+seqs
+clean4
+dfs_4chem <- map(seqs, function(rows) {
+  df <- clean4[rows, ]
+  df$Line <- 1:nrow(df)
+  df
+})
 
 
+# save files --------------------------------------------------------------
+
+clean_paths <- paste0(str_replace(output_file, ".csv$", ""), 
+                      "_clean_", 1:n_files, ".csv")
+
+map2(dfs_4chem, clean_paths, function(df, path) {
+  # write_csv(df, file.path("data_processed/clean_4cc", path))
+}) 
+
+
+# which vials discarded ---------------------------------------------------
+
+# vials that had their data discarded
+discarded <- anti_join(clean1, clean4, by = "Port") %>% 
+  select(Port, `Identifier 1`) %>% 
+  .[!duplicated(.), ]
+
+file <- paste0(str_replace(output_file, ".csv$", ""), "_bad_vials.csv")
+file
+# write_csv(discarded, file.path("data_processed/bad_vials", file))
