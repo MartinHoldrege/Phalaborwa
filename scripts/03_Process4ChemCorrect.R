@@ -1,0 +1,127 @@
+# martin holdrege
+
+# script started 2/19/20
+
+# processing picarro output for chemcorrect
+# ie creating "clean" files
+
+# dependencies ---------------------------------------------------------------
+
+library(tidyverse)
+
+
+# read in data ------------------------------------------------------------
+
+
+# order of jobs run by picarro (for correcting labels)
+jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
+
+# picarrow output
+raw1 <- read_csv("data_raw/picarro_output/output_20200225_Phal1.csv")
+
+# sample descriptions
+
+rear <- read_csv("data_processed/sample_descriptions/Phal1_1.csv")
+front <- read_csv("data_processed/sample_descriptions/Phal1_2.csv")
+
+
+# combine sample descriptions ---------------------------------------------
+
+# to be joined back in with output data where sample descriptions
+# got messed up
+descript <- bind_rows(rear, front) %>% 
+  mutate(Vial = str_pad(Vial, width = 2, side = "left", pad = "0"),
+         Port = paste(Tray, Vial, sep = "-")) %>% 
+  select(-Tray, -Vial)
+
+
+# process jobs file -------------------------------------------------------
+
+tray_lookup <- c("r" = 1, "f" = 2)
+raw1
+jobs1
+
+jobs2 <- jobs1 %>% 
+  mutate(id = 1:nrow(.)) %>% 
+  group_by(id) %>% 
+  nest() %>% 
+  mutate(new_cols = map(data, function(df) {
+    tray_num <- tray_lookup[df$tray]
+    vial_num <- df$start:df$finish %>% 
+      as.character() %>% 
+      str_pad(width = 2, side = "left", pad = "0")
+    Port <- paste(tray_num, vial_num, sep = "-")
+    Inj_Nr <- 1:df$count
+    out <- expand.grid(Inj_Nr = Inj_Nr, Port = Port, stringsAsFactors = FALSE)
+    out
+  })) %>% 
+  select(-data) %>% 
+  ungroup() %>% 
+  unnest(cols = "new_cols") %>% 
+  mutate(Line = 1:nrow(.)) %>% 
+  select(-id)
+
+
+# combine in output data --------------------------------------------------
+
+
+nrow(raw1) 
+nrow(jobs2)
+
+clean1 <- left_join(raw1, jobs2, "Line", suffix = c("", "_cor")) %>% 
+  select(-Port, -`Inj Nr`, -matches("Identifier")) %>% 
+  rename(Port = Port_cor, # just keeping the good versions of these
+         `Inj Nr` = Inj_Nr)  %>% 
+  left_join(descript, by = "Port")
+
+clean2 <- clean1[, names(raw1)] # back to original order
+  
+
+
+# discard bad rows --------------------------------------------------------
+
+# true standard values
+d2O_vals <- c("Low" = 12.5, "Medium" = 247, "High" = 745)
+
+
+# the first round of phal1 is no good. 
+clean3 <- clean2 %>% 
+  filter(Ignore == 0, Good == 1, H2O_Mean > 15000 & !is.na(H2O_Mean))
+nrow(clean2)
+nrow(clean3)
+
+# discarding samples with only 1 rep left
+clean4 <- clean3 %>% 
+  group_by(Port) %>% 
+  mutate(n = n()) %>% 
+  # only 1 obs not good enough
+  filter(n != 1 | `Identifier 1` %in% names(d2O_vals)) %>% 
+  select(-n)
+
+nrow(clean4)
+
+
+# check standards ---------------------------------------------------------
+
+check <- clean4 %>% 
+  filter(`Identifier 1` %in% names(d2O_vals)) %>% 
+  mutate(d2O_true = d2O_vals[`Identifier 1`])
+
+# need two standards each
+n_stds <- check %>% 
+  group_by(`Identifier 1`) %>% 
+  summarize(n = n())
+
+if (any(n_stds$n < 2 | length(n_stds$n) < 3)) {
+  stop("Insufficient num of standards")
+}
+
+lm_check <- lm(d2O_true ~ `d(D_H)Mean`, data = check)
+summary(lm_check)
+
+plot(d2O_true ~ `d(D_H)Mean`, data = check)
+abline(lm_check, col = "blue")
+abline(0, 1)
+
+
+
