@@ -12,18 +12,17 @@ library(tidyverse)
 
 # read in data ------------------------------------------------------------
 
-
 # order of jobs run by picarro (for correcting labels)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
 
 # picarrow output
-output_file <- "output_20200225_Phal1.csv"
+output_file <- "output_20200227_Phal2.csv"
 raw1 <- read_csv(file.path("data_raw/picarro_output", output_file))
 
 # sample descriptions
 
-rear <- read_csv("data_processed/sample_descriptions/Phal1_1.csv")
-front <- read_csv("data_processed/sample_descriptions/Phal1_2.csv")
+rear <- read_csv("data_processed/sample_descriptions/Phal2_1.csv")
+front <- read_csv("data_processed/sample_descriptions/Phal2_2.csv")
 
 
 # combine sample descriptions ---------------------------------------------
@@ -158,7 +157,7 @@ clean_paths <- paste0(str_replace(output_file, ".csv$", ""),
                       "_clean_", 1:n_files, ".csv")
 
 map2(dfs_4chem, clean_paths, function(df, path) {
-  # write_csv(df, file.path("data_processed/clean_4cc", path))
+  write_csv(df, file.path("data_processed/clean_4cc", path))
 }) 
 
 

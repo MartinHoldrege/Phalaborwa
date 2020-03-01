@@ -7,7 +7,7 @@
 
 
 # which set (run) to focus on
-set_num <- 1
+set_num <- 2
 
 
 # packages ----------------------------------------------------------------
@@ -116,14 +116,17 @@ out2 <- tray5 %>%
   filter(Tray == 2)
 nrow(out2) # 50
 
-# write_csv(out1,
-#           paste0("data_processed/sample_descriptions/Phal",
-#                  set_num, "_1.csv"))
-# 
-# write_csv(out2,
-#           paste0("data_processed/sample_descriptions/Phal",
-#                  set_num, "_2.csv"))
+out1_path <- paste0("data_processed/sample_descriptions/Phal",
+                    set_num, "_1.csv")
 
+
+out2_path <- paste0("data_processed/sample_descriptions/Phal",
+                    set_num, "_2.csv")
+
+if (FALSE){
+  write_csv(out1, out1_path)
+  write_csv(out2, out2_path)
+}
 
 # calibration in file -----------------------------------------------------
 
@@ -138,5 +141,5 @@ out2_cal <- out2 %>%
   mutate(`Identifier 1` = id_tray2,
          `Identifier 2` = id_tray2)
 
-write_csv(out1_cal,"data_processed/sample_descriptions/Phal_calibration_1.csv")
-write_csv(out2_cal,"data_processed/sample_descriptions/Phal_calibration_2.csv")
+# write_csv(out1_cal,"data_processed/sample_descriptions/Phal_calibration_1.csv")
+# write_csv(out2_cal,"data_processed/sample_descriptions/Phal_calibration_2.csv")
