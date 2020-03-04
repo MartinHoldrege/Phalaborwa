@@ -16,13 +16,13 @@ library(tidyverse)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
 
 # picarrow output
-output_file <- "output_20200227_Phal2.csv"
+output_file <- "output_20200301_Phal3.csv"
 raw1 <- read_csv(file.path("data_raw/picarro_output", output_file))
 
 # sample descriptions
 
-rear <- read_csv("data_processed/sample_descriptions/Phal2_1.csv")
-front <- read_csv("data_processed/sample_descriptions/Phal2_2.csv")
+rear <- read_csv("data_processed/sample_descriptions/Phal3_1.csv")
+front <- read_csv("data_processed/sample_descriptions/Phal3_2.csv")
 
 
 # combine sample descriptions ---------------------------------------------
