@@ -12,17 +12,28 @@ library(tidyverse)
 
 # read in data ------------------------------------------------------------
 
+set_num <- 3 
+
 # order of jobs run by picarro (for correcting labels)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
 
 # picarrow output
-output_file <- "output_20200301_Phal3.csv"
+
+# problem if multiple files for same set_num (ie set_num = 1)
+output_file <- list.files(
+  path = "data_raw/picarro_output",
+  pattern = paste0("output_\\d{8}_Phal", set_num, ".csv"))
+
+output_file
+
 raw1 <- read_csv(file.path("data_raw/picarro_output", output_file))
 
 # sample descriptions
 
-rear <- read_csv("data_processed/sample_descriptions/Phal3_1.csv")
-front <- read_csv("data_processed/sample_descriptions/Phal3_2.csv")
+rear <- read_csv(paste0("data_processed/sample_descriptions/Phal", 
+                        set_num, "_1.csv"))
+front <- read_csv(paste0("data_processed/sample_descriptions/Phal", 
+                         set_num, "_2.csv"))
 
 
 # combine sample descriptions ---------------------------------------------
