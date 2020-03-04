@@ -100,10 +100,14 @@ clean4 <- clean3 %>%
   ungroup()
 
 nrow(clean4)
-clean4 %>% 
-  filter(!`Identifier 1` %in% names(d2O_vals)) %>% 
-  pull(`d(D_H)Mean`) %>% 
-  hist()
+
+
+non_standard <- clean4 %>% 
+  filter(!`Identifier 1` %in% names(d2O_vals))
+
+hist(non_standard$`d(D_H)Mean`)
+
+
 
 # check standards ---------------------------------------------------------
 
@@ -127,7 +131,16 @@ plot(d2O_true ~ `d(D_H)Mean`, data = check)
 abline(lm_check, col = "blue")
 abline(0, 1)
 
-# prep 
+
+# check SD ----------------------------------------------------------------
+
+DH_summary <- clean4 %>% 
+  group_by(Port, `Identifier 1`, `Identifier 2`) %>% 
+  summarize_at(.vars = vars(`d(D_H)Mean`),
+               .funs = list(mean = mean, median = median, sd = sd))
+
+DH_summary %>% 
+  filter(sd >5)
 
 # prep chem correct files -------------------------------------------------
 
