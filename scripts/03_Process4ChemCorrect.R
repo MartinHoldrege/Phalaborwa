@@ -12,7 +12,7 @@ library(tidyverse)
 
 # read in data ------------------------------------------------------------
 
-set_num <- 3 
+set_num <- 4
 
 # order of jobs run by picarro (for correcting labels)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
@@ -107,8 +107,10 @@ clean4 <- clean3 %>%
   mutate(n = n()) %>% 
   # only 1 obs not good enough
   filter(n != 1 | `Identifier 1` %in% names(d2O_vals)) %>% 
-  select(-n) %>% 
-  ungroup()
+#  select(-n) %>% 
+  ungroup() %>% 
+  # first 3 high standards tend to be bad--so throwing out
+  filter(!(`Inj Nr` %in% 1:3)) 
 
 nrow(clean4)
 
@@ -143,15 +145,36 @@ abline(lm_check, col = "blue")
 abline(0, 1)
 
 
-# check SD ----------------------------------------------------------------
+# check SD/slope ----------------------------------------------------------------
 
 DH_summary <- clean4 %>% 
   group_by(Port, `Identifier 1`, `Identifier 2`) %>% 
-  summarize_at(.vars = vars(`d(D_H)Mean`),
-               .funs = list(mean = mean, median = median, sd = sd))
+  nest() %>% 
+  mutate(lm_slope = map_dbl(data, function(df) {
+    y <- df$`d(D_H)Mean`
+    x <- seq_along(y)
+    mod <- lm(y~x)
+    mod$coefficients[["x"]] # return slope
+  })
+  ) %>% 
+  unnest(cols = "data") %>% 
+  mutate(mean = mean(`d(D_H)Mean`),
+        median = median(`d(D_H)Mean`),
+        sd = sd(`d(D_H)Mean`),
+        n = n()
+        ) %>% 
+  select(matches("Identifier"), Port, lm_slope, mean, median, sd, `d(D_H)Mean`,
+         Line)
 
 DH_summary %>% 
-  filter(sd >5)
+#  filter(sd >5 | abs(lm_slope) > 5) %>% 
+  arrange(desc(abs(lm_slope))) 
+#  View()
+
+# possible bad samples--ie high variability but low slope
+DH_summary %>% 
+  filter(sd > 4 & abs(lm_slope) < 5) %>% 
+  arrange(desc(sd)) 
 
 # prep chem correct files -------------------------------------------------
 
@@ -167,9 +190,10 @@ for (i in 1:n_files) {
   seqs[[i]] <- ith_seq
 }
 seqs
-clean4
+clean5 <- clean4 %>% 
+  select(-n)
 dfs_4chem <- map(seqs, function(rows) {
-  df <- clean4[rows, ]
+  df <- clean5[rows, ]
   df$Line <- 1:nrow(df)
   df
 })
@@ -191,6 +215,8 @@ map2(dfs_4chem, clean_paths, function(df, path) {
 discarded <- anti_join(clean1, clean4, by = "Port") %>% 
   select(Port, `Identifier 1`) %>% 
   .[!duplicated(.), ]
+
+discarded
 
 file <- paste0(str_replace(output_file, ".csv$", ""), "_bad_vials.csv")
 file
