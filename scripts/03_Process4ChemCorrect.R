@@ -12,7 +12,7 @@ library(tidyverse)
 
 # read in data ------------------------------------------------------------
 
-set_num <- 4
+set_num <- 5
 
 # order of jobs run by picarro (for correcting labels)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
@@ -133,7 +133,7 @@ n_stds <- check %>%
   group_by(`Identifier 1`) %>% 
   summarize(n = n())
 
-if (any(n_stds$n < 2 | length(n_stds$n) < 3)) {
+if (any(n_stds$n < 2) | length(n_stds$n) < 3) {
   stop("Insufficient num of standards")
 }
 
@@ -150,31 +150,54 @@ abline(0, 1)
 DH_summary <- clean4 %>% 
   group_by(Port, `Identifier 1`, `Identifier 2`) %>% 
   nest() %>% 
+  # lm slope
   mutate(lm_slope = map_dbl(data, function(df) {
     y <- df$`d(D_H)Mean`
     x <- seq_along(y)
     mod <- lm(y~x)
     mod$coefficients[["x"]] # return slope
+  }),
+  # rank correlation
+  cor = map_dbl(data, function(df) {
+    y <- df$`d(D_H)Mean`
+    x <- seq_along(y)
+    cor(x, y, method = "spearman")
+  }),
+  # delta values ie diff between subsequent values
+  delta = map(data, function(df) {
+    x <-  diff(df$`d(D_H)Mean`)
+    delta <- tibble(
+      delta = c(NA_real_, x), # diff
+      next_delta = c(x, NA_real_) # next diff
+    )
+    delta
   })
   ) %>% 
-  unnest(cols = "data") %>% 
+  unnest(cols = c("data", "delta")) %>% 
   mutate(mean = mean(`d(D_H)Mean`),
         median = median(`d(D_H)Mean`),
         sd = sd(`d(D_H)Mean`),
         n = n()
         ) %>% 
   select(matches("Identifier"), Port, lm_slope, mean, median, sd, `d(D_H)Mean`,
-         Line)
+         Line, n, cor, delta, next_delta)
 
 DH_summary %>% 
 #  filter(sd >5 | abs(lm_slope) > 5) %>% 
-  arrange(desc(abs(lm_slope))) 
-#  View()
+  arrange(desc(abs(lm_slope))) %>% 
+  View()
+
+DH_summary2 <- DH_summary %>% 
+  filter(!`Identifier 1` %in% names(d2O_vals))
+
 
 # possible bad samples--ie high variability but low slope
-DH_summary %>% 
+# slope not meaningful for standards (how calc here)
+DH_summary2 %>% 
   filter(sd > 4 & abs(lm_slope) < 5) %>% 
-  arrange(desc(sd)) 
+  arrange(desc(sd))  %>% 
+  View()
+
 
 # prep chem correct files -------------------------------------------------
 
@@ -206,7 +229,7 @@ clean_paths <- paste0(str_replace(output_file, ".csv$", ""),
 
 map2(dfs_4chem, clean_paths, function(df, path) {
   write_csv(df, file.path("data_processed/clean_4cc", path))
-}) 
+})
 
 
 # which vials discarded ---------------------------------------------------
@@ -220,4 +243,8 @@ discarded
 
 file <- paste0(str_replace(output_file, ".csv$", ""), "_bad_vials.csv")
 file
-# write_csv(discarded, file.path("data_processed/bad_vials", file))
+write_csv(discarded, file.path("data_processed/bad_vials", file))
+
+
+
+
