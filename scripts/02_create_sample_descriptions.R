@@ -7,13 +7,15 @@
 
 
 # which set (run) to focus on
-set_num <- 5
+set_num <- 6
 
 
 # packages ----------------------------------------------------------------
 
 library(tidyverse)
-library(readxl)
+library(googlesheets4)
+
+
 
 # load files --------------------------------------------------------------
 
@@ -21,16 +23,28 @@ library(readxl)
 info1 <- read.csv("data_processed/PhalSorted_v1.csv")
 
 # info about vials in tray
-tray1 <-read_xlsx("data_raw/Phal_unjoined4run.xlsx", sheet = "data")
+# sheets_auth # run to authorize google sheets connections
+url <- "https://drive.google.com/open?id=17IUyKESWdk4z6Db3YJARZekChPkLMXwgJxq-xUo0hlM"
 
+tray1 <-sheets_read(url, sheet = "data")
 
+tray1
 # prep tray file ----------------------------------------------------------
 
 names(tray1)
 
+# unlist such that output vector same length as list even if NULLs
+unlist_NULL <- function(x) {
+  x[map_lgl(x, is.null)] <- NA
+  unlist(x)
+}
+
 # just the set of interest
 tray2 <- tray1 %>% 
-  filter(set == set_num)
+  filter(set == set_num) %>% 
+  mutate_at(vars(matches("identifier")),
+            .funs = unlist_NULL
+         )
 
 cols1 <- tray2 %>% 
   select(tray...2, vial...3, identifier...4) %>% 
