@@ -7,7 +7,7 @@
 
 
 # which set (run) to focus on
-set_num <- 6
+set_num <- 9
 
 
 # packages ----------------------------------------------------------------
@@ -67,7 +67,8 @@ info2 <- info1 %>%
          identifier_2 = paste(plot, taxon, depth, sep = "_"),
          tube = as.character(tube))
 
-dup_vals <- info1$tube[duplicated(info1$tube)]
+dup_vals <- info1$tube[duplicated(info1$tube)] %>% 
+  sort()
 dup_rows1 <- info2 %>% 
   filter(tube %in% dup_vals) %>% 
   arrange(tube) 
@@ -85,7 +86,7 @@ dup_rows3 <-  dup_rows2 %>%
   select(-tube) %>% 
   rename(tube = tube_let) 
 
-dup_tubes <- dup_rows1[duplicated(dup_rows2), ]$tube %>% 
+dup_tubes <- dup_rows1$tube[duplicated(dup_rows1$tube)] %>% 
   unique()
 
 # tube num and identifier 2
@@ -98,7 +99,7 @@ id2 <- info2 %>%
   rename(identifier_1 = tube) %>% 
   as_tibble()
 
-sum(duplicated(id2)) # should be none
+sum(duplicated(id2$identifier_1)) # should be none
 
 
 # join id2  ---------------------------------------------------------------
@@ -113,8 +114,6 @@ tray4 <- tray3 %>%
                                identifier_2)
          )
 
-# should be 0:
-sum(is.na(tray4$identifier_2))
 
 # saving files ------------------------------------------------------------
 
@@ -122,13 +121,27 @@ tray5 <- tray4 %>%
   rename(Tray = tray, Vial = vial, `Identifier 1` = identifier_1,
          `Identifier 2` = identifier_2)
 
+test <- tray5 %>% 
+  filter(is.na(`Identifier 2`))
+
+if(nrow(test) > 0) {
+  stop("vials with id unmatched number in metadata")
+  print(test)
+}
+
 out1 <- tray5 %>% 
   filter(Tray == 1)
-nrow(out1) # 54
+
 
 out2 <- tray5 %>% 
   filter(Tray == 2)
-nrow(out2) # 50
+
+# check
+stopifnot(
+  nrow(out1) == 54,
+  nrow(out2) == 50,
+  all(!is.na(tray5$`Identifier 2`))
+)
 
 out1_path <- paste0("data_processed/sample_descriptions/Phal",
                     set_num, "_1.csv")
