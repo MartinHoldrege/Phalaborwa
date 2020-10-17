@@ -7,7 +7,7 @@
 
 
 # which set (run) to focus on
-set_num <- 9
+set_num <- 11
 
 
 # packages ----------------------------------------------------------------
@@ -125,8 +125,8 @@ test <- tray5 %>%
   filter(is.na(`Identifier 2`))
 
 if(nrow(test) > 0) {
-  stop("vials with id unmatched number in metadata")
   print(test)
+  stop("vials with id unmatched number in metadata")
 }
 
 out1 <- tray5 %>% 
