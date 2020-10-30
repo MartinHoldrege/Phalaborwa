@@ -7,7 +7,7 @@
 
 
 # which set (run) to focus on
-set_num <- 11
+set_num <- 15
 
 
 # packages ----------------------------------------------------------------
@@ -150,7 +150,7 @@ out1_path <- paste0("data_processed/sample_descriptions/Phal",
 out2_path <- paste0("data_processed/sample_descriptions/Phal",
                     set_num, "_2.csv")
 
-if (FALSE){
+if (TRUE){
   write_csv(out1, out1_path)
   write_csv(out2, out2_path)
 }
@@ -170,3 +170,4 @@ out2_cal <- out2 %>%
 
 # write_csv(out1_cal,"data_processed/sample_descriptions/Phal_calibration_1.csv")
 # write_csv(out2_cal,"data_processed/sample_descriptions/Phal_calibration_2.csv")
+

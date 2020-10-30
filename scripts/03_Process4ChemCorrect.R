@@ -12,7 +12,7 @@ library(tidyverse)
 
 # read in data ------------------------------------------------------------
 
-set_num <- 11
+set_num <- 14
 
 # order of jobs run by picarro (for correcting labels)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
@@ -184,8 +184,7 @@ DH_summary <- clean4 %>%
 
 DH_summary %>% 
 #  filter(sd >5 | abs(lm_slope) > 5) %>% 
-  arrange(desc(abs(lm_slope))) %>% 
-  View()
+  arrange(desc(abs(lm_slope)))
 
 DH_summary2 <- DH_summary %>% 
   filter(!`Identifier 1` %in% names(d2O_vals))
@@ -195,8 +194,7 @@ DH_summary2 <- DH_summary %>%
 # slope not meaningful for standards (how calc here)
 DH_summary2 %>% 
   filter(sd > 4 & abs(lm_slope) < 5) %>% 
-  arrange(desc(sd))  %>% 
-  View()
+  arrange(desc(sd))
 
 
 # prep chem correct files -------------------------------------------------
