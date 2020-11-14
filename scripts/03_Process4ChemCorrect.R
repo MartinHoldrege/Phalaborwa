@@ -12,7 +12,7 @@ library(tidyverse)
 
 # read in data ------------------------------------------------------------
 
-set_num <- 14
+set_num <- 15
 
 # order of jobs run by picarro (for correcting labels)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
@@ -26,8 +26,13 @@ output_file <- list.files(
 
 output_file
 
-raw1 <- read_csv(file.path("data_raw/picarro_output", output_file))
+# phal15 doesn't have col names so pulling them from other file
 
+phal14 <- read_csv("data_raw/picarro_output/output_20201027_Phal14.csv")
+
+raw1 <- read_csv(file.path("data_raw/picarro_output", output_file),
+                 col_names = FALSE)
+names(raw1) <- names(phal14)
 # sample descriptions
 
 rear <- read_csv(paste0("data_processed/sample_descriptions/Phal", 
