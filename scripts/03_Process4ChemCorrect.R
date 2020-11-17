@@ -12,45 +12,72 @@ library(tidyverse)
 
 # read in data ------------------------------------------------------------
 
-set_num <- 16
+
+# * picarro output --------------------------------------------------------
+
 
 # order of jobs run by picarro (for correcting labels)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
 
 # picarrow output
 
-# problem if multiple files for same set_num (ie set_num = 1)
-output_file <- list.files(
-  path = "data_raw/picarro_output",
-  pattern = paste0("output_\\d{8}_Phal", set_num, ".csv"))
+output_paths <- list.files(path = "data_raw/picarro_output",
+                           pattern = "output_\\d{8}_Phal\\d{1,2}\\.csv",
+                           full.names = TRUE)
 
-output_file
+phal_names <- str_extract(output_paths, "[Pp]hal\\d{1,2}")
+names(output_paths) <- phal_names
+raw1 <- map(output_paths, read_csv)
 
-raw1 <- read_csv(file.path("data_raw/picarro_output", output_file))
+# dealing with phal15 seperately (no col names)
+raw1$Phal15 <- read_csv(output_paths["Phal15"], col_names = FALSE)
+names(raw1$Phal15) <- names(raw1$Phal14)
 
-# sample descriptions
 
-rear <- read_csv(paste0("data_processed/sample_descriptions/Phal", 
-                        set_num, "_1.csv"))
-front <- read_csv(paste0("data_processed/sample_descriptions/Phal", 
-                         set_num, "_2.csv"))
+# * sample descriptions ---------------------------------------------------
 
+rear_paths <- list.files(path = "data_processed/sample_descriptions",
+                             pattern = "Phal\\d{1,2}_1\\.csv",
+                             full.names = TRUE)
+
+front_paths <- list.files(path = "data_processed/sample_descriptions",
+                         pattern = "Phal\\d{1,2}_2\\.csv",
+                         full.names = TRUE)
+
+names(rear_paths) <- str_extract(rear_paths, "[Pp]hal\\d{1,2}")
+names(front_paths) <- str_extract(front_paths, "[Pp]hal\\d{1,2}")
+
+# making sure order is the same as picarro output above
+rear_paths <- rear_paths[phal_names]
+front_paths <- front_paths[phal_names]
+
+# none missing?
+stopifnot(
+  length(rear_paths) == length(phal_names),
+  length(front_paths) == length(phal_names)
+)
+
+rear <- map(rear_paths, read_csv)
+front <- map(front_paths, read_csv)
 
 # combine sample descriptions ---------------------------------------------
 
 # to be joined back in with output data where sample descriptions
 # got messed up
-descript <- bind_rows(rear, front) %>% 
-  mutate(Vial = str_pad(Vial, width = 2, side = "left", pad = "0"),
-         Port = paste(Tray, Vial, sep = "-")) %>% 
-  select(-Tray, -Vial)
+
+descript <- map2(rear, front, function(x, y) {
+  bind_rows(x, y) %>% 
+    mutate(Vial = str_pad(Vial, width = 2, side = "left", pad = "0"),
+           Port = paste(Tray, Vial, sep = "-")) %>% 
+    select(-Tray, -Vial)
+})
 
 
 # process jobs file -------------------------------------------------------
 
 tray_lookup <- c("r" = 1, "f" = 2)
-raw1
-jobs1
+
+
 
 jobs2 <- jobs1 %>% 
   mutate(id = 1:nrow(.)) %>% 
@@ -75,19 +102,18 @@ jobs2 <- jobs1 %>%
 
 # combine in output data --------------------------------------------------
 
-
-nrow(raw1) 
 nrow(jobs2)
 
-clean1 <- left_join(raw1, jobs2, "Line", suffix = c("", "_cor")) %>% 
-  select(-Port, -`Inj Nr`, -matches("Identifier")) %>% 
-  rename(Port = Port_cor, # just keeping the good versions of these
-         `Inj Nr` = Inj_Nr)  %>% 
-  left_join(descript, by = "Port")
-
-clean2 <- clean1[, names(raw1)] # back to original order
+clean2 <- map2(raw1, descript, function(x, y) {
+  out <- left_join(x, jobs2, by = "Line", suffix = c("", "_cor")) %>% 
+    select(-Port, -`Inj Nr`, -matches("Identifier")) %>% 
+    rename(Port = Port_cor, # just keeping the good versions of these
+           `Inj Nr` = Inj_Nr)  %>% 
+    left_join(y, by = "Port")
   
-
+  out <- out[, names(x)] # back to original order
+  out
+})
 
 # discard bad rows --------------------------------------------------------
 
@@ -96,46 +122,50 @@ d2O_vals <- c("Low" = 12.5, "Medium" = 247, "High" = 745)
 
 
 # the first round of phal1 is no good. 
-clean3 <- clean2 %>% 
-  filter(Ignore == 0, Good == 1, H2O_Mean > 15000 & !is.na(H2O_Mean))
-nrow(clean2)
-nrow(clean3)
+clean3 <- map(clean2, .f = filter, 
+              Ignore == 0, Good == 1, H2O_Mean > 15000 & !is.na(H2O_Mean))
 
 # discarding samples with only 1 rep left
-clean4 <- clean3 %>% 
-  group_by(Port) %>% 
-  mutate(n = n()) %>% 
-  # only 1 obs not good enough
-  filter(n != 1 | `Identifier 1` %in% names(d2O_vals)) %>% 
-#  select(-n) %>% 
-  ungroup() %>% 
-  # first 3 high standards tend to be bad--so throwing out
-  filter(!(`Inj Nr` %in% 1:3)) 
+clean4 <- map(clean3, function(df) {
+  df %>% 
+    group_by(Port) %>% 
+    mutate(n = n()) %>% 
+    # only 1 obs not good enough
+    filter(n != 1 | `Identifier 1` %in% names(d2O_vals)) %>% 
+    #  select(-n) %>% 
+    ungroup() %>% 
+    # first 3 high standards tend to be bad--so throwing out
+    filter(!(`Inj Nr` %in% 1:3)) 
+})
 
-nrow(clean4)
+clean3$Phal1$`Identifier 1` %>% unique()
 
+non_standard <- map(clean4, .f = filter,
+                    !`Identifier 1` %in% names(d2O_vals))
+                    
 
-non_standard <- clean4 %>% 
-  filter(!`Identifier 1` %in% names(d2O_vals))
-
-hist(non_standard$`d(D_H)Mean`)
-
-
+hist(non_standard$Phal16$`d(D_H)Mean`)
 
 # check standards ---------------------------------------------------------
 
-check <- clean4 %>% 
-  filter(`Identifier 1` %in% names(d2O_vals)) %>% 
-  mutate(d2O_true = d2O_vals[`Identifier 1`])
-
+check <- map(clean4, function(df) {
+  df %>% 
+    filter(`Identifier 1` %in% names(d2O_vals)) %>% 
+    mutate(d2O_true = d2O_vals[`Identifier 1`])
+})
 # need two standards each
-n_stds <- check %>% 
-  group_by(`Identifier 1`) %>% 
-  summarize(n = n())
+n_stds <- map(check, function(df) {
+  df %>% 
+    group_by(`Identifier 1`) %>% 
+    summarize(n = n())
+})
 
-if (any(n_stds$n < 2) | length(n_stds$n) < 3) {
-  stop("Insufficient num of standards")
-}
+walk2(n_stds, names(n_stds), function(x, y) {
+  if (any(x$n < 2) | length(x$n) < 3) {
+    warning("Insufficient num of standards in ",y)
+  }
+})
+
 
 lm_check <- lm(d2O_true ~ `d(D_H)Mean`, data = check)
 summary(lm_check)
