@@ -9,9 +9,7 @@
 
 library(tidyverse)
 
-
 # read in data ------------------------------------------------------------
-
 
 # * picarro output --------------------------------------------------------
 
@@ -77,8 +75,6 @@ descript <- map2(rear, front, function(x, y) {
 
 tray_lookup <- c("r" = 1, "f" = 2)
 
-
-
 jobs2 <- jobs1 %>% 
   mutate(id = 1:nrow(.)) %>% 
   group_by(id) %>% 
@@ -138,7 +134,6 @@ clean4 <- map(clean3, function(df) {
     filter(!(`Inj Nr` %in% 1:3)) 
 })
 
-clean3$Phal1$`Identifier 1` %>% unique()
 
 non_standard <- map(clean4, .f = filter,
                     !`Identifier 1` %in% names(d2O_vals))
@@ -167,111 +162,116 @@ walk2(n_stds, names(n_stds), function(x, y) {
 })
 
 
-lm_check <- lm(d2O_true ~ `d(D_H)Mean`, data = check)
-summary(lm_check)
+lm_check <- map(check, function(df) {
+  lm(d2O_true ~ `d(D_H)Mean`, data = df)
+})
 
-plot(d2O_true ~ `d(D_H)Mean`, data = check)
-abline(lm_check, col = "blue")
-abline(0, 1)
-
+# check linear mods
+R2 <- map_dbl(lm_check, function(x) summary(x)$r.squared)
+R2
+#slopes should be 1
+beta <- map_dbl(lm_check, function(x) x$coefficients[2])
+hist(beta)
 
 # check SD/slope ----------------------------------------------------------------
 
-DH_summary <- clean4 %>% 
-  group_by(Port, `Identifier 1`, `Identifier 2`) %>% 
-  nest() %>% 
-  # lm slope
-  mutate(lm_slope = map_dbl(data, function(df) {
-    y <- df$`d(D_H)Mean`
-    x <- seq_along(y)
-    mod <- lm(y~x)
-    mod$coefficients[["x"]] # return slope
-  }),
-  # rank correlation
-  cor = map_dbl(data, function(df) {
-    y <- df$`d(D_H)Mean`
-    x <- seq_along(y)
-    cor(x, y, method = "spearman")
-  }),
-  # delta values ie diff between subsequent values
-  delta = map(data, function(df) {
-    x <-  diff(df$`d(D_H)Mean`)
-    delta <- tibble(
-      delta = c(NA_real_, x), # diff
-      next_delta = c(x, NA_real_) # next diff
-    )
-    delta
-  })
-  ) %>% 
-  unnest(cols = c("data", "delta")) %>% 
-  mutate(mean = mean(`d(D_H)Mean`),
-        median = median(`d(D_H)Mean`),
-        sd = sd(`d(D_H)Mean`),
-        n = n()
-        ) %>% 
-  select(matches("Identifier"), Port, lm_slope, mean, median, sd, `d(D_H)Mean`,
-         Line, n, cor, delta, next_delta)
-
-DH_summary %>% 
-#  filter(sd >5 | abs(lm_slope) > 5) %>% 
-  arrange(desc(abs(lm_slope)))
-
-DH_summary2 <- DH_summary %>% 
-  filter(!`Identifier 1` %in% names(d2O_vals))
-
-
-# possible bad samples--ie high variability but low slope
-# slope not meaningful for standards (how calc here)
-DH_summary2 %>% 
-  filter(sd > 4 & abs(lm_slope) < 5) %>% 
-  arrange(desc(sd))
-
+# code removed check commits before 11/16/20
 
 # prep chem correct files -------------------------------------------------
 
-# chem correct files can only have 250 lines
-n <- nrow(clean4)
-n_files <- ceiling(n/250)
+# chem correct files can only have 250 lines.
+# my idea here is to include all the standards in both files
 
-first <- 1
-seqs <- list()
-for (i in 1:n_files) {
-  ith_seq <- first:min(n, i*250)
-  first <- max(ith_seq) + 1
-  seqs[[i]] <- ith_seq
-}
-seqs
-clean5 <- clean4 %>% 
-  select(-n)
-dfs_4chem <- map(seqs, function(rows) {
-  df <- clean5[rows, ]
-  df$Line <- 1:nrow(df)
-  df
+
+dfs_4chem <- map(clean4, function(x) {
+  # df with standards only (included in all chem correct files)
+  stds_only <- x %>% 
+    filter(`Identifier 1` %in% names(d2O_vals)) %>% 
+    select(-n)
+  
+  # df with no standards
+  no_stds <- x %>% 
+    filter(!`Identifier 1` %in% names(d2O_vals)) %>% 
+    select(-n)
+  
+  # appending standards to rest of data (up to 250 rows)
+  # then looping to add additional dataframes until with <= 250 rows
+  # until no more rows
+  
+  df_list <- list()
+  df_num <- 1
+  while(nrow(no_stds) > 1) {
+    end_row <- min(nrow(no_stds), 250 - nrow(stds_only))
+    
+    # do't want a specific sample split over two output files
+    end_id <- no_stds[end_row, ]$`Identifier 1`
+    
+    if (end_id != "Tap") {
+      
+      which_id <- which(no_stds$`Identifier 1` == end_id)
+      end_row <- if(max(which_id) <= 250 - nrow(stds_only)) {
+        end_row 
+      } else {
+        min(which_id) -1 # in this case 'stop early' so don't split observations
+        # across two dfs
+      }
+    }
+    
+    rows <- 1:end_row
+    
+    df <- bind_rows(stds_only, no_stds[rows, ])
+    df$Line <- 1:nrow(df)
+    
+    df_list[[df_num]] <- df
+    
+    # prep for next loop cycle:
+    
+    # remove rows already saved 
+    no_stds <- no_stds[-rows, ]
+    
+    df_num <- df_num + 1
+  }
+  return(df_list)
 })
 
+# num rows in each chem correct file
+map(dfs_4chem, function(dfs) map_dbl(dfs, nrow))
+n_files <- map_dbl(dfs_4chem, length)
+
+# an example where first file for chem correct <250 so that
+# vial doesn't get 'split'
+tail(dfs_4chem$Phal3[[1]])
 
 # save files --------------------------------------------------------------
+# everyting after / ie just file name
+short_paths <- str_extract(output_paths, "[^/]+$")
+names(short_paths) <- names(output_paths)
 
-clean_paths <- paste0(str_replace(output_file, ".csv$", ""), 
-                      "_clean_", 1:n_files, ".csv")
-
-map2(dfs_4chem, clean_paths, function(df, path) {
-  write_csv(df, file.path("data_processed/clean_4cc", path))
+clean_paths <- map2(short_paths, n_files, function(x, y) {
+  paste0(str_replace(x, ".csv$", ""), "_clean_", 1:y, ".csv")
 })
 
+# for each run write 1 or more files to chem correct
+map2(dfs_4chem, clean_paths, function(dfs, paths) {
+  map2(dfs, paths, function(df, path) {
+    write_csv(df, file.path("data_processed/clean_4cc", path))
+  })
+})
 
 # which vials discarded ---------------------------------------------------
 
 # vials that had their data discarded
-discarded <- anti_join(clean1, clean4, by = "Port") %>% 
-  select(Port, `Identifier 1`) %>% 
-  .[!duplicated(.), ]
 
-discarded
+discarded <- map2(clean2, clean4, function(x, y ) {
+  anti_join(x, y, by = "Port") %>% 
+    select(Port, `Identifier 1`) %>% 
+    .[!duplicated(.), ]
+})
 
-file <- paste0(str_replace(output_file, ".csv$", ""), "_bad_vials.csv")
-file
-write_csv(discarded, file.path("data_processed/bad_vials", file))
+discarded <- bind_rows(discarded, .id = "run")
+
+write_csv(discarded, "data_processed/bad_vials/Phal_bad_vials.csv")
+
 
 
 
