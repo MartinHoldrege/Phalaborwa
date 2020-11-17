@@ -12,7 +12,7 @@ library(tidyverse)
 
 # read in data ------------------------------------------------------------
 
-set_num <- 14
+set_num <- 16
 
 # order of jobs run by picarro (for correcting labels)
 jobs1 <- readxl::read_xlsx("data_raw/picarro_jobs.xlsx", sheet = "data")
