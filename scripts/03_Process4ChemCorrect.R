@@ -87,6 +87,7 @@ jobs2 <- jobs1 %>%
     Port <- paste(tray_num, vial_num, sep = "-")
     Inj_Nr <- 1:df$count
     out <- expand.grid(Inj_Nr = Inj_Nr, Port = Port, stringsAsFactors = FALSE)
+    out$Job <- df$Job # each id belongs to 1 job
     out
   })) %>% 
   select(-data) %>% 
@@ -101,11 +102,14 @@ jobs2 <- jobs1 %>%
 nrow(jobs2)
 
 clean2 <- map2(raw1, descript, function(x, y) {
+  # join in correct port and id from descript
   out <- left_join(x, jobs2, by = "Line", suffix = c("", "_cor")) %>% 
     select(-Port, -`Inj Nr`, -matches("Identifier")) %>% 
     rename(Port = Port_cor, # just keeping the good versions of these
            `Inj Nr` = Inj_Nr)  %>% 
-    left_join(y, by = "Port")
+    left_join(y, by = "Port") %>% 
+    mutate(Sample = str_extract(Port, "\\d+$"),
+           Sample = as.numeric(Sample))
   
   out <- out[, names(x)] # back to original order
   out
@@ -171,6 +175,7 @@ R2 <- map_dbl(lm_check, function(x) summary(x)$r.squared)
 R2
 #slopes should be 1
 beta <- map_dbl(lm_check, function(x) x$coefficients[2])
+beta
 hist(beta)
 
 # check SD/slope ----------------------------------------------------------------
@@ -252,12 +257,13 @@ clean_paths <- map2(short_paths, n_files, function(x, y) {
 })
 
 # for each run write 1 or more files to chem correct
+if (FALSE) {
 map2(dfs_4chem, clean_paths, function(dfs, paths) {
   map2(dfs, paths, function(df, path) {
     write_csv(df, file.path("data_processed/clean_4cc", path))
   })
 })
-
+}
 # which vials discarded ---------------------------------------------------
 
 # vials that had their data discarded
@@ -269,10 +275,10 @@ discarded <- map2(clean2, clean4, function(x, y ) {
 })
 
 discarded <- bind_rows(discarded, .id = "run")
-
-write_csv(discarded, "data_processed/bad_vials/Phal_bad_vials.csv")
-
-
+tail(discarded)
+if (FALSE) {
+  write_csv(discarded, "data_processed/bad_vials/Phal_bad_vials.csv")
+}
 
 
 
