@@ -101,6 +101,8 @@ jobs2 <- jobs1 %>%
 
 nrow(jobs2)
 
+# this are the tables with correct labeling but no rows removed yet
+# (ie what you'd get if the sampler didn't have bugs)
 clean2 <- map2(raw1, descript, function(x, y) {
   # join in correct port and id from descript
   out <- left_join(x, jobs2, by = "Line", suffix = c("", "_cor")) %>% 
@@ -125,19 +127,32 @@ d2O_vals <- c("Low" = 12.5, "Medium" = 247, "High" = 745)
 clean3 <- map(clean2, .f = filter, 
               Ignore == 0, Good == 1, H2O_Mean > 15000 & !is.na(H2O_Mean))
 
+# special processing for phal7 -- high standard didn't have enough
+# water in it so pulling std data from phal 6. Doing this because the
+# other standards look fine, suggesting the run was totally fine otherwise. 
+
+clean3$Phal7 <- bind_rows(filter(clean3$Phal7,`Identifier 1` != "High"),
+                          filter(clean3$Phal6, `Identifier 1` == "High")
+)
+                          
+
 # discarding samples with only 1 rep left
 clean4 <- map(clean3, function(df) {
   df %>% 
+    # first 3 high standards tend to be bad--so throwing out
+    filter(!(`Inj Nr` %in% 1:3)) %>% 
     group_by(Port) %>% 
     mutate(n = n()) %>% 
     # only 1 obs not good enough
     filter(n != 1 | `Identifier 1` %in% names(d2O_vals)) %>% 
-    #  select(-n) %>% 
-    ungroup() %>% 
-    # first 3 high standards tend to be bad--so throwing out
-    filter(!(`Inj Nr` %in% 1:3)) 
+    select(-n) %>% 
+    ungroup() 
 })
 
+# checking for unreplicated samples
+map_dbl(clean4, function(df) {
+  min(table(df$Port))
+})
 
 non_standard <- map(clean4, .f = filter,
                     !`Identifier 1` %in% names(d2O_vals))
@@ -170,6 +185,10 @@ lm_check <- map(check, function(df) {
   lm(d2O_true ~ `d(D_H)Mean`, data = df)
 })
 
+# checking 7
+plot(d2O_true ~ `d(D_H)Mean`, data = check$Phal7)
+abline(0, 1)
+
 # check linear mods
 R2 <- map_dbl(lm_check, function(x) summary(x)$r.squared)
 R2
@@ -191,13 +210,11 @@ hist(beta)
 dfs_4chem <- map(clean4, function(x) {
   # df with standards only (included in all chem correct files)
   stds_only <- x %>% 
-    filter(`Identifier 1` %in% names(d2O_vals)) %>% 
-    select(-n)
+    filter(`Identifier 1` %in% names(d2O_vals))
   
   # df with no standards
   no_stds <- x %>% 
-    filter(!`Identifier 1` %in% names(d2O_vals)) %>% 
-    select(-n)
+    filter(!`Identifier 1` %in% names(d2O_vals)) 
   
   # appending standards to rest of data (up to 250 rows)
   # then looping to add additional dataframes until with <= 250 rows
@@ -209,17 +226,14 @@ dfs_4chem <- map(clean4, function(x) {
     end_row <- min(nrow(no_stds), 250 - nrow(stds_only))
     
     # do't want a specific sample split over two output files
-    end_id <- no_stds[end_row, ]$`Identifier 1`
+    end_port <- no_stds[end_row, ]$Port
     
-    if (end_id != "Tap") {
-      
-      which_id <- which(no_stds$`Identifier 1` == end_id)
-      end_row <- if(max(which_id) <= 250 - nrow(stds_only)) {
-        end_row 
-      } else {
-        min(which_id) -1 # in this case 'stop early' so don't split observations
-        # across two dfs
-      }
+    which_port <- which(no_stds$Port == end_port)
+    end_row <- if(max(which_port) <= 250 - nrow(stds_only)) {
+      end_row 
+    } else {
+      min(which_port) -1 # in this case 'stop early' so don't split observations
+      # across two dfs
     }
     
     rows <- 1:end_row
@@ -276,9 +290,9 @@ discarded <- map2(clean2, clean4, function(x, y ) {
 
 discarded <- bind_rows(discarded, .id = "run")
 tail(discarded)
+
 if (FALSE) {
-  write_csv(discarded, "data_processed/bad_vials/Phal_bad_vials.csv")
+  write_csv(discarded, "data_processed/bad_vials/Phal_bad_vials_v2.csv")
 }
-
-
+dfs_4chem$Phal10 %>% View()
 

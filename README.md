@@ -25,4 +25,6 @@ data_processed >
     sample descriptions that have been cleaned up in R such that they can be
     read by the picarro. 
 
-  
+Misc notes:
+ Phal1-phal17 ran through chem correct on 11/20/20. Note that phal1-phal9 
+ and phal11-phal13 were run with option 'injections to ignore' = 1. The rest with 0. Going forward using 0 is better (although I'm not sure it makes a difference). 
