@@ -296,3 +296,10 @@ if (FALSE) {
 }
 dfs_4chem$Phal10 %>% View()
 
+
+# comparing old to new discarded file -------------------------------------
+
+d1 <- read_csv("data_processed/bad_vials/Phal_bad_vials.csv")
+d2 <- discarded
+
+anti_join(d2, d1)
