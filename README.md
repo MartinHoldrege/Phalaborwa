@@ -25,6 +25,19 @@ data_processed >
   sample_descriptions >
     sample descriptions that have been cleaned up in R such that they can be
     read by the picarro. 
+    
+## description of select data files
+
+`data_processed/Phal_combined_picarro_output.csv`--the raw combined picarro output 
+(Id's are correct)
+
+`data_processed/Phal_combined_picarro_output_w_descriptions.csv`--the raw combined picarro output 
+(Id's are correct). Sample descriptions joined in (sample descriptions left blank 
+for vials that don't have unique descriptions)
+
+`data_processed/Phal_combined_cc_output.csv`--the combined chemcorrect output
+with sample descriptions joined in. Vials that don't have unique sample descriptions
+are not included here. 
 
 
 ## Descriptions of scripts
