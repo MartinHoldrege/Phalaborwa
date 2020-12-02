@@ -117,6 +117,14 @@ clean2 <- map2(raw1, descript, function(x, y) {
   out
 })
 
+
+# save combined 'raw' data ------------------------------------------------
+
+clean2_save <- clean2 %>% 
+  bind_rows(.id = "run")
+
+write_csv(clean2_save, "data_processed/Phal_combined_picarro_output.csv")
+
 # discard bad rows --------------------------------------------------------
 
 # true standard values
@@ -186,7 +194,7 @@ lm_check <- map(check, function(df) {
 })
 
 # checking 7
-plot(d2O_true ~ `d(D_H)Mean`, data = check$Phal7)
+plot(d2O_true ~ `d(D_H)Mean`, data = check$Phal)
 abline(0, 1)
 
 # check linear mods
