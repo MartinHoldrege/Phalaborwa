@@ -194,7 +194,7 @@ lm_check <- map(check, function(df) {
 })
 
 # checking 7
-plot(d2O_true ~ `d(D_H)Mean`, data = check$Phal)
+plot(d2O_true ~ `d(D_H)Mean`, data = check$Phal7)
 abline(0, 1)
 
 # check linear mods
