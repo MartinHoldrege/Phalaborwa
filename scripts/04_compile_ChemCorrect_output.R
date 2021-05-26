@@ -151,6 +151,4 @@ write_csv(comb_good1, "data_processed/Phal_combined_cc_output.csv")
 
 write_csv(comb_dup, "data_processed/Phal_combined_cc_output_non-unique-vials.csv")
 
-write_csv(comb_good1, "data_processed/Phal_combined_cc_output.csv")
-
 write_csv(pic_output2, "data_processed/Phal_combined_picarro_output_w_descripts.csv")
